@@ -112,7 +112,7 @@ process P5MERGE {
 process P6CollectHs {
 
         tag "6CollectHs on $name using $task.cpus CPUs and $task.memory memory"
-        publishDir "${params.outDirectory}/${sample.run}/picard1/", mode:'copy'
+        publishDir "${params.outDirectory}/${sample.run}/qc/", mode:'copy'
         container "broadinstitute/picard:3.4.0"
 
         label "l_cpu"
@@ -122,54 +122,14 @@ process P6CollectHs {
         tuple val(name), val(sample), path("${name}.aligned_tag_umi.bam")
 
         output:
-        tuple val(name), val(sample), path("${name}.hs_metrics.txt")
+        tuple val(name), val(sample), path("${name}.picard.txt")
 
         script:
         """
         echo 6CollectHs $name
-        java -jar /usr/picard/picard.jar CollectHsMetrics -I ${name}.aligned_tag_umi.bam -O ${name}.hs_metrics.txt -R ${params.refindex}.fa --BAIT_INTERVALS ${params.picardintervallist} --TARGET_INTERVALS ${params.picardintervallist}
+        java -jar /usr/picard/picard.jar CollectHsMetrics -I ${name}.aligned_tag_umi.bam -O ${name}.picard.txt -R ${params.refindex}.fa --BAIT_INTERVALS ${params.picardintervallist} --TARGET_INTERVALS ${params.picardintervallist}
         """
 }
-
-process PICARD_QC {
-
-    tag "Picard QC"
-
-    publishDir "${params.outDirectory}/${run_name}/picard1/", mode: "copy"
-
-    input:
-    tuple val(run_name), path(hs_metrics)
-
-    output:
-    tuple val(run_name), path("picard_qc_summary.tsv")
-
-    script:
-    """
-    python3 ${projectDir}/scripts/picard_qc_cfDNA.py
-    """
-}
-
-process MULTIQC {
-        tag "MULTIQC2 on ${run_name} using $task.cpus CPUs and $task.memory memory"
-        container "staphb/multiqc:1.30"
-
-        input:
-        tuple val(run_name), path(picard_files)
-
-        publishDir { "${params.outDirectory}/${run_name}/picard1/" }, mode: 'copy'
-
-        output:
-        path("multiqc_report_picard.html")
-
-        script:
-        """
-        echo Running MultiQC for $run_name
-        ls -lh
-        multiqc . -n multiqc_report_picard.html
-        """
-
-}
-
 
 process P7GroupbyUMI {
 
@@ -318,7 +278,7 @@ java -jar /usr/picard/picard.jar SortSam \
 process P10aCollectHs {
 
         tag "P10aCollectHs on $name using $task.cpus CPUs and $task.memory memory"
-        publishDir "${params.outDirectory}/${sample.run}/picard2/", mode:'copy'
+        publishDir "${params.outDirectory}/${sample.run}/qc/", mode:'copy'
 
         container "broadinstitute/picard:3.4.0"
 
@@ -329,53 +289,13 @@ process P10aCollectHs {
         tuple val(name), val(sample), path("${name}.consensus_aligned_merged_FINAL.bam")
 
         output:
-        tuple val(name), val(sample), path("${name}.hs_metrics.txt")
+        tuple val(name), val(sample), path("${name}.picard.2.txt")
 
         script:
         """
         echo P10CollectHs $name
-        java -jar /usr/picard/picard.jar CollectHsMetrics -I ${name}.consensus_aligned_merged_FINAL.bam -O ${name}.hs_metrics.txt -R ${params.refindex}.fa --BAIT_INTERVALS ${params.picardintervallist} --TARGET_INTERVALS ${params.picardintervallist}
+        java -jar /usr/picard/picard.jar CollectHsMetrics -I ${name}.consensus_aligned_merged_FINAL.bam -O ${name}.picard.2.txt -R ${params.refindex}.fa --BAIT_INTERVALS ${params.picardintervallist} --TARGET_INTERVALS ${params.picardintervallist}
         """
-}
-
-
-process PICARD_QC2 {
-
-    tag "Picard QC"
-
-    publishDir "${params.outDirectory}/${run_name}/picard2/", mode: "copy"
-
-    input:
-    tuple val(run_name), path(hs_metrics)
-
-    output:
-    tuple val(run_name), path("picard_qc_summary.tsv")
-
-    script:
-    """
-    python3 ${projectDir}/scripts/picard_qc_cfDNA.py
-    """
-}
-
-process MULTIQC2 {
-        tag "MULTIQC2 on ${run_name} using $task.cpus CPUs and $task.memory memory"
-        container "staphb/multiqc:1.30"
-
-        input:
-        tuple val(run_name), path(picard_files)
-
-        publishDir { "${params.outDirectory}/${run_name}/picard2/" }, mode: 'copy'
-
-        output:
-        path("multiqc_report_picard.html")
-
-        script:
-        """
-        echo Running MultiQC for $run_name
-        ls -lh
-        multiqc . -n multiqc_report_picard.html
-        """
-
 }
 
 
@@ -473,7 +393,7 @@ process ANOTACE_annovar1 {
 
 process VCF2TXT1 {
        tag "VCF2TXT on $name"
-       publishDir "${params.outDirectory}/${sample.run}/annovar/", mode:'copy'
+       publishDir "${params.outDirectory}/${sample.run}/mutect/", mode:'copy'
 
         input:
         tuple val(name), val(sample), path("${name}.norm.mutect.vcf.gz.hg38_multianno.vcf.gz"), path("${name}.norm.mutect.vcf.gz.hg38_multianno.vcf.gz.tbi")
@@ -488,63 +408,6 @@ process VCF2TXT1 {
         gatk --java-options "-Xmx4g" VariantsToTable -R ${params.ref}.fa  --show-filtered  -V ${name}.norm.mutect.vcf.gz.hg38_multianno.vcf.gz -F CHROM -F POS -F REF -F ALT -GF GT -GF AD -GF DP -GF SB -GF VAF -F Func.refGeneWithVer -F Gene.refGeneWithVer -F GeneDetail.refGeneWithVer -F ExonicFunc.refGeneWithVer -F AAChange.refGeneWithVer -F 1000g2015aug_all -F 1000g2015aug_eur  -F gnomad41_exome_AF -F gnomad41_exome_AF_nfe -F gnomad41_genome_AF -F gnomad41_genome_AF_nfe -F avsnp150 -F CLNSIG -F REVEL -F SIFT_pred -F MutationTaster_pred -F Gene_full_name.refGeneWithVer -F FATHMM_pred -F PROVEAN_pred -F Function_description.refGeneWithVer -F Disease_description.refGeneWithVer -F Tissue_specificityUniprot.refGeneWithVer -F Expression-egenetics.refGeneWithVer --output ${name}.final.mutect.txt
         """
 }
-
-process ANOTACE_vepem {
-       tag "ANOTACE vepem on $name"
-       //publishDir "${params.outDirectory}/${sample.run}/vep/", mode:'copy'
-         container "ensemblorg/ensembl-vep:release_114.1"
-
-        input:
-        tuple val(name), val(sample), path("${name}.norm.mutect.vcf.gz"), path("${name}.norm.mutect.vcf.gz.tbi")
-
-        output:
-        tuple val(name), val(sample), path("${name}.vep.vcf")
-
-        script:
-        """
-        vep -i ${name}.norm.mutect.vcf.gz --cache --cache_version 114 --dir_cache $params.vep \
-        --fasta ${params.ref}.fa --merged --offline --mane --force_overwrite --vcf --everything -o ${name}.vep.vcf
-
-        """
-}
-
-process BIOPET {
-     tag "BIOPET on $name"
-      // publishDir "${params.outDirectory}/${sample.run}/vep/", mode:'copy'
-
-     input:
-     tuple val(name), val(sample), path(vep)
-
-     output:
-     tuple val(name), val(sample), path("${name}.vepalpfa.anot.vcf")
-
-     script:
-     """
-     source activate biopet
-     biopet tool VepNormalizer -I $vep -O ${name}.vepalpfa.anot.vcf -m standard
-     """
-}
-
-process VCFTOTXTVEP {
-
-        tag "VCFTOTXTVEP on $name"
-        publishDir "${params.outDirectory}/${sample.run}/vep/", mode:'copy'
-
-        input:
-        tuple val(name), val(sample), path(biopet)
-
-        output:
-        tuple val(name), val(sample), path("${name}.vepalpfa.anot.txt")
-
-        script:
-        """
-        source activate py36
-
-        python ${params.vcfsimplify} SimplifyVCF -toType table -inVCF $biopet -out ${name}.vepalpfa.anot.txt
-        """
-}
-
-
 
 process COVERAGE1 {
           tag "COVERAGE1 on $name"
@@ -659,54 +522,18 @@ fastqnew = P3BAMtoFASTQ(umiextracted)
 alignedbam = P4ALIGN(fastqnew)
 merged = P5MERGE(alignedbam)
 metrika = P6CollectHs(merged)
-
-//Group the PICARD output files by run name
-    grouped_picard_files = metrika
-        .map { name, sample, hsmetrics ->
-            tuple(sample.run, [hsmetrics])
-        }
-        .groupTuple()           // groups by run name: [run_name: [[files], [files], ...]]
-        .map { run_name, lists_of_files ->
-            def all_files = lists_of_files.flatten()
-            tuple(run_name, all_files)
-        }
-
-MULTIQC(grouped_picard_files)
-qualimap_ch = PICARD_QC(grouped_picard_files)
-
 gruped = P7GroupbyUMI(merged)
 consesnsus = P8Consensus(gruped)
 fastq2 = P9aDuplex(consesnsus)
 bamconsens = P9bmapping(fastq2)
 finalbam = P10Merge(bamconsens)
 metrika2 = P10aCollectHs(finalbam)
-
-//Group the PICARD output files by run name
-    grouped_picard_files2 = metrika2
-        .map { name, sample, hsmetrics ->
-            tuple(sample.run, [hsmetrics])
-        }
-        .groupTuple()           // groups by run name: [run_name: [[files], [files], ...]]
-        .map { run_name, lists_of_files ->
-            def all_files = lists_of_files.flatten()
-            tuple(run_name, all_files)
-        }
-
-MULTIQC2(grouped_picard_files2)
-qualimap_ch = PICARD_QC2(grouped_picard_files2)
-
-
 finalbamsortedindex = P11SORT_INDEX(finalbam)
 
 varcalling = GATK(finalbamsortedindex)
 normalizovany = VAFaNORMALIZACE1(varcalling)
-
-anotovany1 = ANOTACE_annovar1(normalizovany)
-anotovanyfin = VCF2TXT1(anotovany1)
-
-anotovany2 = ANOTACE_vepem(normalizovany)
-biopetovany = BIOPET(anotovany2)
-textovany = VCFTOTXTVEP(biopetovany)
+anotovany = ANOTACE_annovar1(normalizovany)
+anotovanyfin = VCF2TXT1(anotovany)
 
 coverage_results = COVERAGE1(finalbamsortedindex)
 coverage_files_collected = coverage_results
